@@ -1,0 +1,32 @@
+Package: randomPlatform
+Title: Clinical Trial Randomization Platform
+Version: 1.0.0
+Authors@R: c(
+    person("Ming", "Yang", role = c("aut", "cre"), email = "yangpluszhu@sina.com")
+  )
+Author: Ming Yang [aut, cre]
+Maintainer: Ming Yang <yangpluszhu@sina.com>
+Description: Generate reproducible clinical trial randomization schedules,
+    intervention codes, allocation concealment envelopes, emergency
+    unblinding envelopes, audit artifacts, and a local Shiny web interface.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.1.0)
+Imports:
+    bslib,
+    digest,
+    DT,
+    grDevices,
+    jsonlite,
+    openxlsx,
+    shiny,
+    shinyFiles,
+    stats,
+    utils,
+    zip
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

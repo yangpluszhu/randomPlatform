@@ -1,0 +1,11 @@
+^plan[.]txt$
+^prompt[.]txt$
+^randomPlatform[.]Rcheck$
+^[.][.]Rcheck$
+^[.]playwright-mcp$
+^[.]codegraph$
+^APP$
+^tools/portable$
+^pdf_preview$
+^start_randomPlatform_UI[.]R$
+^start_randomPlatform_UI[.]bat$
