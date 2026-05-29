@@ -8,8 +8,6 @@
 
 **Clinical Trial Randomization Platform** — Generate reproducible randomization schedules, intervention codes, allocation concealment envelopes, emergency unblinding envelopes, audit artifacts, and a local Shiny web interface for clinical trials.
 
-![randomPlatform logo](logo.png "randomPlatform logo")
-
 ## Features
 
 - **4 randomization methods**: simple, block (permuted block with variable sizes), stratified, and stratified block
