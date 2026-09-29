@@ -160,8 +160,8 @@ rp_minimization_session <- function(
   output_dir <- .rp_validate_output_dir(output_dir)
   state_file <- normalizePath(file.path(output_dir, state_file), winslash = "/", mustWork = FALSE)
 
-  old_rng <- RNGkind()
-  on.exit(do.call(RNGkind, as.list(old_rng)), add = TRUE)
+  restore_rng <- .rp_save_rng()
+  on.exit(restore_rng(), add = TRUE)
   .rp_set_rng(as.integer(seed), "Mersenne-Twister", "Inversion", "Rejection")
   session <- list(
     project_name = project_name,
@@ -289,7 +289,9 @@ rp_assign_next <- function(
   if (subject_id %in% session$assignments$subject_id) stop("subject_id has already been assigned.", call. = FALSE)
   if (!all(session$factors %in% names(covariates))) stop("covariates must include all minimization factors.", call. = FALSE)
   covariates <- covariates[session$factors]
-  .Random.seed <<- session$rng_state
+  restore_rng <- .rp_save_rng()
+  on.exit(restore_rng(), add = TRUE)
+  assign(".Random.seed", session$rng_state, envir = globalenv())
   scores <- .rp_min_scores(session, covariates)
   best <- names(scores)[scores == min(scores)]
   groups <- session$interventions$group_id
@@ -303,7 +305,10 @@ rp_assign_next <- function(
   group <- sample(groups, 1L, prob = probs)
   n <- nrow(session$assignments) + 1L
   random_no <- paste0("R", sprintf("%03d", n))
-  drug_code <- paste0("MED-", sprintf("%04d", sample(seq.int(1000, 9999), 1L)))
+  used_codes <- as.integer(sub("^MED-", "", session$assignments$drug_code %||% character()))
+  code_pool <- setdiff(seq.int(1000, 9999), used_codes)
+  if (length(code_pool) == 0L) stop("No unused drug codes left in 1000-9999.", call. = FALSE)
+  drug_code <- paste0("MED-", sprintf("%04d", code_pool[sample.int(length(code_pool), 1L)]))
   envelope_no <- paste0("No. ", sprintf("%03d", n))
   intervention_name <- session$interventions$intervention_name[match(group, session$interventions$group_id)]
   blind_label <- session$interventions$blind_label[match(group, session$interventions$group_id)]
@@ -322,7 +327,7 @@ rp_assign_next <- function(
   )
   for (f in session$factors) row[[f]] <- as.character(covariates[[f]])
   session$assignments <- rbind(session$assignments, row)
-  session$rng_state <- .Random.seed
+  session$rng_state <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
   .rp_min_save(session)
   .rp_write_csv_utf8(session$assignments, file.path(session$output_dir, "minimization_assignments.csv"))
   .rp_write_audit(session$output_dir, "minimization_assignment", "Participant assigned by minimization.", list(subject_id = subject_id, group_id = group))

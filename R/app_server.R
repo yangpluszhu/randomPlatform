@@ -234,7 +234,10 @@ rp_app_server <- function(input, output, session) {
         return(NULL)
       }
       shiny::incProgress(0.4, detail = "\u6267\u884C\u968F\u673A\u5316")
-      res <- tryCatch(do.call(rp_randomize, args), error = function(e) e)
+      res <- tryCatch(withCallingHandlers(do.call(rp_randomize, args), warning = function(w) {
+        shiny::showNotification(conditionMessage(w), type = "warning", duration = NULL)
+        invokeRestart("muffleWarning")
+      }), error = function(e) e)
       if (inherits(res, "error")) {
         last_error(res$message)
         return(NULL)

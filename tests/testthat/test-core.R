@@ -465,7 +465,8 @@ test_that("envelope rows use 申办单位 label", {
 
 test_that("reproducibility script embeds package functions and runs standalone", {
   dir <- tempfile("rp-repro-")
-  res <- rp_randomize(
+  # code_by_group only exercises the named-prefix path here; its warning has its own test.
+  res <- suppressWarnings(rp_randomize(
     project_name = "Trial",
     protocol_no = "P-001",
     sponsor_name = "Sponsor",
@@ -486,7 +487,7 @@ test_that("reproducibility script embeds package functions and runs standalone",
     generate_reproducibility = TRUE,
     standalone_reproducibility_code = TRUE,
     output_dir = dir
-  )
+  ))
 
   hash_lines <- readLines(res$files$hashes, warn = FALSE, encoding = "UTF-8")
   copied_root <- tempfile("rp-repro-copy-")
@@ -506,7 +507,7 @@ test_that("reproducibility script embeds package functions and runs standalone",
   expect_true(grepl("res <- do.call(rp_randomize", script, fixed = TRUE))
   expect_true(any(grepl("^reproduce_randomization\\.R:", hash_lines)))
   expect_true(any(grepl("^audit_log\\.jsonl:", hash_lines)))
-  expect_message(sys.source(script_path, envir = env), "Reproducibility check passed")
+  expect_message(suppressWarnings(sys.source(script_path, envir = env)), "Reproducibility check passed")
   expect_true(exists("rp_randomize", envir = env, inherits = FALSE))
 })
 
@@ -528,4 +529,67 @@ test_that("emergency insert sensitive note height grows to fit wrapped text", {
   expect_gt(legacy_required_height, 0.11)
   expect_gte(note_spec$height, required_height)
   expect_gt(note_spec$y_top - note_spec$height, 0.05)
+})
+
+.rp_hard_args <- function(dir, ...) {
+  utils::modifyList(list(
+    project_name = "Trial", protocol_no = "P-001", sponsor_name = "Sponsor",
+    interventions = c(A = "Test", B = "Control"), seed = 11, output_dir = dir,
+    generate_report = FALSE, generate_reproducibility = FALSE
+  ), list(...))
+}
+
+test_that("block methods reject fractional allocation ratios instead of truncating them", {
+  dir <- tempfile("rp-ratio-")
+  expect_error(
+    do.call(rp_randomize, .rp_hard_args(dir, method = "block", n_total = 20, allocation_ratio = c(A = 1.5, B = 1), block_sizes = 4L)),
+    "whole-number allocation ratios"
+  )
+  res <- do.call(rp_randomize, .rp_hard_args(dir, method = "block", n_total = 20, allocation_ratio = c(A = 3, B = 2), block_sizes = 5L))
+  expect_equal(as.integer(table(res$allocation_table$group_id)[c("A", "B")]), c(12L, 8L))
+})
+
+test_that("blinded site table carries no block structure", {
+  dir <- tempfile("rp-blind-")
+  res <- do.call(rp_randomize, .rp_hard_args(dir, method = "stratified_block", n_total = 16,
+    strata = list(sex = c("F", "M")), block_sizes = c(4, 8), generate_report = TRUE))
+  expect_false(any(c("block_id", "block_size", "group_id", "intervention_name") %in% names(res$blinded_table)))
+  csv <- utils::read.csv(res$files$blinded_site_table, fileEncoding = "UTF-8-BOM", check.names = FALSE)
+  expect_false(any(c("block_id", "block_size") %in% names(csv)))
+  sheet <- openxlsx::read.xlsx(res$files$report, sheet = "Blinded Site Table")
+  expect_false(any(c("block_id", "block_size") %in% names(sheet)))
+  expect_true(all(c("block_id", "block_size") %in% names(res$unblinded_table)))
+})
+
+test_that("code_by_group warns that drug codes reveal allocation", {
+  dir <- tempfile("rp-cbg-")
+  expect_warning(
+    do.call(rp_randomize, .rp_hard_args(dir, method = "block", n_total = 8, block_sizes = 4L, code_by_group = TRUE)),
+    "reveals allocation"
+  )
+})
+
+test_that("rp_randomize leaves the caller's RNG stream untouched", {
+  dir <- tempfile("rp-rng-")
+  set.seed(42); expected <- stats::runif(3)
+  set.seed(42)
+  do.call(rp_randomize, .rp_hard_args(dir, method = "simple", n_total = 6))
+  expect_identical(stats::runif(3), expected)
+})
+
+test_that("minimization never reuses a drug code and restores the caller's RNG", {
+  dir <- tempfile("rp-min-codes-")
+  sess <- rp_minimization_session("Trial", "P-001", "Sponsor", c(A = "Test", B = "Control"),
+    factors = "sex", seed = 7, output_dir = dir)
+  # Force collisions: leave exactly two unused codes, then ask for three.
+  used <- setdiff(seq.int(1000, 9999), c(1234L, 5678L))
+  sess$assignments <- data.frame(subject_id = paste0("X", used), envelope_no = "No. 000", random_no = "R000",
+    drug_code = paste0("MED-", used), group_id = "A", intervention_name = "Test", blind_label = "Treatment",
+    assigned_at = "", operator = NA_character_, note = NA_character_, sex = "F", stringsAsFactors = FALSE)
+  set.seed(1); expected <- stats::runif(1); set.seed(1)
+  r1 <- rp_assign_next(sess, "S1", list(sex = "F"))
+  expect_identical(stats::runif(1), expected)
+  r2 <- rp_assign_next(r1$session, "S2", list(sex = "M"))
+  expect_setequal(c(r1$unblinded$drug_code, r2$unblinded$drug_code), c("MED-1234", "MED-5678"))
+  expect_error(rp_assign_next(r2$session, "S3", list(sex = "F")), "No unused drug codes")
 })
