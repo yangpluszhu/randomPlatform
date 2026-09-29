@@ -105,7 +105,7 @@ test_that("UI does not claim outputs are encrypted", {
 })
 
 test_that("UI verification code no longer compares the table to itself", {
-  server_text <- paste(readLines("D:/tmpProject/randomPlatform/R/app_server.R", warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  server_text <- paste(deparse(rp_app_server), collapse = "\n")
   expect_false(grepl("rp_verify_reproducibility\\(result\\(\\)\\$allocation_table, result\\(\\)\\$allocation_table\\)", server_text))
   expect_true(grepl("sys.source", server_text, fixed = TRUE))
 })
